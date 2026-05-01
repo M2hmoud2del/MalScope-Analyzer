@@ -1,70 +1,176 @@
-import sys
-import os
+"""
+MalScope Main Window Compositor
+===============================
+Assembles the 3-column enterprise layout and wires all signals.
+"""
+
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton,
-    QFileDialog, QTableWidget, QTableWidgetItem, QProgressBar, QLabel
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter
+)
+from PyQt5.QtCore import Qt
+
+from gui.signals import MalScopeSignals
+from gui.theme import SIZES, COLORS
+
+from gui.widgets import (
+    HeaderBar, FolderSelectorCard, ScanControlPanel, 
+    StatsPanel, PipelineVisualizer, ResultsTable, 
+    LogConsole, FileDetailsTabs, ReportPanel
 )
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MalScope - Malware Analysis Tool")
-        self.setGeometry(200, 200, 800, 500)
+        self.setWindowTitle("MalScope - Professional SOC Dashboard")
+        self.setMinimumSize(1400, 900)
+        
+        # Instantiate central signal hub
+        self.signals = MalScopeSignals()
+        
+        self._build_ui()
+        self._connect_signals()
 
-        self.layout = QVBoxLayout()
+    def _build_ui(self):
+        # Main central widget
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        
+        # Main layout (Vertical: Header + Body)
+        self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # Header
+        self.header = HeaderBar()
+        self.main_layout.addWidget(self.header)
+        
+        # Body (Horizontal: Left, Center, Right)
+        self.body_widget = QWidget()
+        self.body_widget.setStyleSheet(f"background-color: {COLORS['bg_primary']};")
+        self.body_layout = QHBoxLayout(self.body_widget)
+        self.body_layout.setContentsMargins(10, 10, 10, 10)
+        self.body_layout.setSpacing(10)
+        
+        # --- LEFT PANEL ---
+        self.left_panel = QWidget()
+        self.left_panel.setFixedWidth(SIZES['left_panel_w'])
+        self.left_layout = QVBoxLayout(self.left_panel)
+        self.left_layout.setContentsMargins(0, 0, 0, 0)
+        self.left_layout.setSpacing(10)
+        
+        self.folder_selector = FolderSelectorCard()
+        self.scan_controls = ScanControlPanel()
+        self.stats_panel = StatsPanel()
+        self.pipeline_viz = PipelineVisualizer()
+        
+        self.left_layout.addWidget(self.folder_selector)
+        self.left_layout.addWidget(self.scan_controls)
+        self.left_layout.addWidget(self.stats_panel)
+        self.left_layout.addWidget(self.pipeline_viz)
+        
+        # --- CENTER PANEL (Stretchable) ---
+        self.center_splitter = QSplitter(Qt.Vertical)
+        
+        self.results_table = ResultsTable()
+        self.log_console = LogConsole()
+        
+        self.center_splitter.addWidget(self.results_table)
+        self.center_splitter.addWidget(self.log_console)
+        # Give more space to the table by default
+        self.center_splitter.setSizes([600, 200])
+        
+        # --- RIGHT PANEL ---
+        self.right_panel = QWidget()
+        self.right_panel.setFixedWidth(SIZES['right_panel_w'])
+        self.right_layout = QVBoxLayout(self.right_panel)
+        self.right_layout.setContentsMargins(0, 0, 0, 0)
+        self.right_layout.setSpacing(10)
+        
+        self.file_details = FileDetailsTabs()
+        self.report_panel = ReportPanel()
+        
+        self.right_layout.addWidget(self.file_details)
+        self.right_layout.addWidget(self.report_panel)
+        
+        # Add to body layout
+        self.body_layout.addWidget(self.left_panel)
+        self.body_layout.addWidget(self.center_splitter, 1)  # 1 = stretch
+        self.body_layout.addWidget(self.right_panel)
+        
+        self.main_layout.addWidget(self.body_widget, 1)
 
-        self.label = QLabel("Select a folder to scan")
-        self.layout.addWidget(self.label)
+    def _connect_signals(self):
+        """Strictly connect signals without inline logic."""
+        # 1. Widget -> Signal Hub (Requests to Backend)
+        self.scan_controls.btn_start.clicked.connect(self._route_start_scan)
+        self.scan_controls.btn_stop.clicked.connect(self.signals.request_stop.emit)
+        self.report_panel.btn_generate.clicked.connect(self._route_generate_report)
+        
+        # 2. Signal Hub -> Widgets (Updates from Backend)
+        self.signals.scan_started.connect(self._handle_scan_started)
+        self.signals.scan_progress.connect(self.stats_panel.update_progress)
+        self.signals.file_scan_started.connect(self.pipeline_viz.set_active_file)
+        self.signals.pipeline_stage_changed.connect(self.pipeline_viz.update_stage)
+        self.signals.file_result_ready.connect(self._handle_file_result)
+        self.signals.scan_completed.connect(self._handle_scan_completed)
+        self.signals.log_message.connect(self.log_console.append_log)
+        
+        self.signals.report_progress.connect(self.report_panel.update_progress)
+        self.signals.report_completed.connect(self.report_panel.report_completed)
+        self.signals.report_error.connect(self.report_panel.report_error)
+        
+        # 3. Widget -> MainWindow -> Widget (Local UI Routing, NO direct widget-to-widget)
+        self.results_table.row_selected.connect(self._route_row_selection)
+        self.scan_controls.btn_clear.clicked.connect(self._route_clear_ui)
 
-        self.btn_browse = QPushButton("Browse Folder")
-        self.btn_browse.clicked.connect(self.select_folder)
-        self.layout.addWidget(self.btn_browse)
+    # --- Routing Methods (No Business Logic) ---
 
-        self.btn_scan = QPushButton("Start Scan")
-        self.btn_scan.clicked.connect(self.scan_files)
-        self.layout.addWidget(self.btn_scan)
-
-        self.progress = QProgressBar()
-        self.layout.addWidget(self.progress)
-
-        self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["File", "Hash", "Status", "Threat"])
-        self.layout.addWidget(self.table)
-
-        self.setLayout(self.layout)
-
-        self.folder_path = ""
-
-    def select_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+    def _route_start_scan(self):
+        folder = self.folder_selector.get_folder_path()
         if folder:
-            self.folder_path = folder
-            self.label.setText(f"Selected: {folder}")
+            self._route_clear_ui()
+            self.signals.request_scan.emit(folder)
+        else:
+            self.signals.log_message.emit("WARN", "Please select a folder before starting the scan.")
 
-    def scan_files(self):
-        if not self.folder_path:
-            self.label.setText("Please select a folder first!")
-            return
+    def _route_generate_report(self):
+        scope = "current" if self.report_panel.combo_scope.currentIndex() == 0 else "all"
+        files = []
+        if scope == "current":
+            row = self.results_table.table.currentRow()
+            if row >= 0:
+                item = self.results_table.table.item(row, 0)
+                if item:
+                    files = [item.text()]
+        self.signals.request_report.emit(scope, files)
 
-        files = os.listdir(self.folder_path)
-        self.table.setRowCount(len(files))
+    def _route_row_selection(self, file_data: dict):
+        # UI routing: table selection updates details panel
+        self.file_details.load_data(file_data)
 
-        for i, file in enumerate(files):
-            file_path = os.path.join(self.folder_path, file)
+    def _route_clear_ui(self):
+        self.results_table.clear_all()
+        self.file_details.clear()
+        self.pipeline_viz.reset()
+        self.stats_panel.reset()
+        self.signals.log_message.emit("INFO", "UI Cleared.")
 
-            # Dummy data (هنبدلها بعدين بالـ scanner الحقيقي)
-            self.table.setItem(i, 0, QTableWidgetItem(file))
-            self.table.setItem(i, 1, QTableWidgetItem("hash_here"))
-            self.table.setItem(i, 2, QTableWidgetItem("Scanning..."))
-            self.table.setItem(i, 3, QTableWidgetItem("-"))
+    # --- State Handlers ---
 
-            self.progress.setValue(int((i + 1) / len(files) * 100))
+    def _handle_scan_started(self):
+        self.scan_controls.set_scanning(True)
 
-        self.label.setText("Scan Completed!")
+    def _handle_scan_completed(self, summary: dict):
+        self.scan_controls.set_scanning(False)
+        self.pipeline_viz.set_active_file("", complete=True)
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+    def _handle_file_result(self, result: dict):
+        self.results_table.add_result(result)
+        # MainWindow updates the stats panel based on the result, instead of inline logic
+        verdict = result.get("verdict", "unknown").lower()
+        if "malicious" in verdict:
+            self.stats_panel.increment("malicious")
+        elif "suspicious" in verdict:
+            self.stats_panel.increment("suspicious")
+        elif "clean" in verdict:
+            self.stats_panel.increment("clean")
