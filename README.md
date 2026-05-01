@@ -19,7 +19,7 @@ Each module is **fully independent** and communicates through a central orchestr
 ---
 
 # 🏗️ Architecture Overview
-![Logo](/Docs/System Architecture.png)
+![Logo](/Docs/System_Architecture.png)
 
 ```
 
