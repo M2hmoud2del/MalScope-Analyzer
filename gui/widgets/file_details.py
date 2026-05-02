@@ -8,9 +8,9 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel,
     QTableWidget, QTableWidgetItem, QTextEdit, QTreeWidget,
     QTreeWidgetItem, QFrame, QPushButton, QApplication,
-    QHeaderView, QAbstractItemView, QScrollArea
+    QHeaderView, QAbstractItemView, QScrollArea, QGraphicsOpacityEffect
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QFont, QColor
 from gui.theme import COLORS, severity_color, score_color
 from .ai_insights import AIInsightsTab
@@ -278,6 +278,16 @@ class FileDetailsTabs(QWidget):
         )
         self.dynamic_tab.load_data(result.get("dynamic", {}))
         self.ai_tab.load_data(result.get("ai_explanation", {}), verdict)
+
+        # Trigger fast fade-in animation
+        self.effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.effect)
+        self.anim = QPropertyAnimation(self.effect, b"opacity")
+        self.anim.setDuration(150)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(1)
+        self.anim.setEasingCurve(QEasingCurve.OutQuad)
+        self.anim.start()
 
     def clear(self):
         self._current_data = None

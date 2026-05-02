@@ -4,8 +4,8 @@ MalScope Pipeline Visualizer Widget
 Vertical pipeline flow visualization with animated stage indicators.
 """
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsOpacityEffect
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QAbstractAnimation
 from gui.theme import COLORS
 
 
@@ -20,8 +20,10 @@ class PipelineNode(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(6)
-        self.icon_lbl = QLabel(icon)
-        self.icon_lbl.setStyleSheet("font-size:12px;border:none;background:transparent;")
+        self.icon_lbl = QLabel()
+        from gui.theme import get_icon
+        self.icon_lbl.setPixmap(get_icon(icon, color=COLORS['text_dim']).pixmap(12, 12))
+        self.icon_lbl.setStyleSheet("border:none;background:transparent;")
         layout.addWidget(self.icon_lbl)
         self.name_lbl = QLabel(name)
         self.name_lbl.setStyleSheet(f"color:{COLORS['text_dim']};font-size:10px;font-weight:600;border:none;background:transparent;")
@@ -31,6 +33,22 @@ class PipelineNode(QFrame):
         self.status_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self.status_lbl)
         self._apply_idle()
+        
+        self.effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.effect)
+        self.anim = QPropertyAnimation(self.effect, b"opacity")
+        self.anim.setDuration(800)
+        self.anim.setStartValue(1.0)
+        self.anim.setEndValue(0.4)
+        self.anim.setEasingCurve(QEasingCurve.InOutQuad)
+        # We'll use a loop to ping-pong, but QAbstractAnimation.Loop isn't available easily without setting loop count
+        # Instead, we can use setLoopCount(-1) and set easing or just use setDirection.
+        # Wait, QPropertyAnimation doesn't have ping-pong natively unless we use QSequentialAnimationGroup or just let it loop 0 to 1.
+        # Actually QPropertyAnimation has setLoopCount(-1) and KeyValues.
+        self.anim.setLoopCount(-1)
+        self.anim.setKeyValueAt(0, 1.0)
+        self.anim.setKeyValueAt(0.5, 0.4)
+        self.anim.setKeyValueAt(1, 1.0)
 
     def set_state(self, state):
         self._state = state
@@ -38,15 +56,22 @@ class PipelineNode(QFrame):
             self.setStyleSheet(f"PipelineNode,QFrame{{background-color:{COLORS['accent_blue']}15;border:1px solid {COLORS['accent_blue']};border-radius:6px;}}")
             self.name_lbl.setStyleSheet(f"color:{COLORS['accent_cyan']};font-size:10px;font-weight:700;border:none;background:transparent;")
             self.status_lbl.setText("◉"); self.status_lbl.setStyleSheet(f"color:{COLORS['accent_blue']};font-size:12px;border:none;background:transparent;")
+            self.anim.start()
         elif state == "completed":
+            self.anim.stop()
+            self.effect.setOpacity(1.0)
             self.setStyleSheet(f"PipelineNode,QFrame{{background-color:{COLORS['success']}10;border:1px solid {COLORS['success']}60;border-radius:6px;}}")
             self.name_lbl.setStyleSheet(f"color:{COLORS['success']};font-size:10px;font-weight:700;border:none;background:transparent;")
             self.status_lbl.setText("✓"); self.status_lbl.setStyleSheet(f"color:{COLORS['success']};font-size:12px;font-weight:bold;border:none;background:transparent;")
         elif state == "error":
+            self.anim.stop()
+            self.effect.setOpacity(1.0)
             self.setStyleSheet(f"PipelineNode,QFrame{{background-color:{COLORS['error']}10;border:1px solid {COLORS['error']}60;border-radius:6px;}}")
             self.name_lbl.setStyleSheet(f"color:{COLORS['error']};font-size:10px;font-weight:700;border:none;background:transparent;")
             self.status_lbl.setText("✗"); self.status_lbl.setStyleSheet(f"color:{COLORS['error']};font-size:12px;font-weight:bold;border:none;background:transparent;")
         else:
+            self.anim.stop()
+            self.effect.setOpacity(1.0)
             self._apply_idle()
 
     def _apply_idle(self):
@@ -59,12 +84,12 @@ class PipelineVisualizer(QWidget):
     """Vertical pipeline flow chart."""
 
     STAGES = [
-        ("📁", "Input"),
-        ("🔬", "Static Analysis"),
-        ("⚡", "Dynamic Analysis"),
-        ("📊", "Risk Scoring"),
-        ("🤖", "AI Explanation"),
-        ("📄", "Report"),
+        ("fa5s.folder-open", "Input"),
+        ("fa5s.microscope", "Static Analysis"),
+        ("fa5s.bolt", "Dynamic Analysis"),
+        ("fa5s.chart-bar", "Risk Scoring"),
+        ("fa5s.brain", "AI Explanation"),
+        ("fa5s.file-pdf", "Report"),
     ]
 
     def __init__(self, parent=None):
@@ -78,9 +103,17 @@ class PipelineVisualizer(QWidget):
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(0)
 
-        header = QLabel("🔄  PIPELINE STATUS")
+        header = QLabel("PIPELINE STATUS")
+        from gui.theme import get_icon
+        header_icon = QLabel()
+        header_icon.setPixmap(get_icon("fa5s.sync-alt", color=COLORS['accent_cyan']).pixmap(10, 10))
+        h_layout = QHBoxLayout()
+        h_layout.setContentsMargins(0,0,0,0)
+        h_layout.addWidget(header_icon)
+        h_layout.addWidget(header)
+        h_layout.addStretch()
         header.setStyleSheet(f"color:{COLORS['accent_cyan']};font-size:10px;font-weight:700;letter-spacing:1px;border:none;background:transparent;")
-        layout.addWidget(header)
+        layout.addLayout(h_layout)
 
         sep = QFrame(); sep.setFrameShape(QFrame.HLine); sep.setStyleSheet(f"color:{COLORS['border']};"); sep.setFixedHeight(1)
         layout.addWidget(sep)

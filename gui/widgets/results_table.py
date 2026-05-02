@@ -64,8 +64,10 @@ class ResultsTable(QWidget):
 
         # Search / filter bar
         filter_bar = QHBoxLayout()
-        filter_icon = QLabel("🔍")
-        filter_icon.setStyleSheet("border:none;background:transparent;font-size:13px;")
+        from gui.theme import get_icon
+        filter_icon = QLabel()
+        filter_icon.setPixmap(get_icon("fa5s.search", color=COLORS['text_dim']).pixmap(13, 13))
+        filter_icon.setStyleSheet("border:none;background:transparent;")
         filter_bar.addWidget(filter_icon)
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Filter results...")
@@ -109,11 +111,18 @@ class ResultsTable(QWidget):
         self.table.setColumnWidth(4, 110)   # Risk
         self.table.setColumnWidth(5, 140)   # Verdict
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
-        self.table.setStyleSheet("""
-        QHeaderView::section {
-            padding: 6px;
+        self.table.setStyleSheet(f"""
+        QTableWidget {{
+            background-color: {COLORS['bg_card']};
+            alternate-background-color: {COLORS['bg_secondary']};
+        }}
+        QTableWidget::item {{
+            padding: 8px; /* Increased padding */
+        }}
+        QHeaderView::section {{
+            padding: 8px 12px;
             font-weight: 600;
-        }
+        }}
         """)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)

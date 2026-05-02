@@ -153,15 +153,17 @@ class MainWindow(QMainWindow):
         self.file_details.clear()
         self.pipeline_viz.reset()
         self.stats_panel.reset()
+        # Set state to idle
+        self.scan_controls.set_state("idle")
         self.signals.log_message.emit("INFO", "UI Cleared.")
 
     # --- State Handlers ---
 
     def _handle_scan_started(self):
-        self.scan_controls.set_scanning(True)
+        self.scan_controls.set_state("scanning")
 
     def _handle_scan_completed(self, summary: dict):
-        self.scan_controls.set_scanning(False)
+        self.scan_controls.set_state("completed")
         self.pipeline_viz.set_active_file("", complete=True)
 
     def _handle_file_result(self, result: dict):

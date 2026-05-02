@@ -15,12 +15,12 @@ class PipelineStageIndicator(QWidget):
     """A single pipeline stage indicator (icon + label)."""
 
     STAGES = [
-        ("📁", "Input"),
-        ("🔬", "Static"),
-        ("⚡", "Dynamic"),
-        ("📊", "Scoring"),
-        ("🤖", "AI"),
-        ("📄", "Report"),
+        ("fa5s.folder-open", "Input"),
+        ("fa5s.microscope", "Static"),
+        ("fa5s.bolt", "Dynamic"),
+        ("fa5s.chart-bar", "Scoring"),
+        ("fa5s.brain", "AI"),
+        ("fa5s.file-pdf", "Report"),
     ]
 
     def __init__(self, parent=None):
@@ -49,8 +49,10 @@ class PipelineStageIndicator(QWidget):
             stage_layout.setContentsMargins(4, 2, 4, 2)
             stage_layout.setSpacing(3)
 
-            icon_lbl = QLabel(icon)
-            icon_lbl.setStyleSheet("font-size: 12px; border: none; background: transparent;")
+            icon_lbl = QLabel()
+            from gui.theme import get_icon
+            icon_lbl.setPixmap(get_icon(icon, color=COLORS['text_dim']).pixmap(12, 12))
+            icon_lbl.setStyleSheet("border: none; background: transparent;")
             stage_layout.addWidget(icon_lbl)
 
             name_lbl = QLabel(name)
@@ -105,6 +107,10 @@ class PipelineStageIndicator(QWidget):
                 color: {COLORS['accent_cyan']};
                 border: none; background: transparent;
             """)
+            # Update icon color
+            icon_name = self.STAGES[idx][0]
+            from gui.theme import get_icon
+            frame.layout().itemAt(0).widget().setPixmap(get_icon(icon_name, color=COLORS['accent_cyan']).pixmap(12, 12))
         elif state == "completed":
             frame.setStyleSheet(f"""
                 QFrame {{
@@ -119,6 +125,9 @@ class PipelineStageIndicator(QWidget):
                 color: {COLORS['success']};
                 border: none; background: transparent;
             """)
+            icon_name = self.STAGES[idx][0]
+            from gui.theme import get_icon
+            frame.layout().itemAt(0).widget().setPixmap(get_icon(icon_name, color=COLORS['success']).pixmap(12, 12))
         elif state == "error":
             frame.setStyleSheet(f"""
                 QFrame {{
@@ -133,6 +142,9 @@ class PipelineStageIndicator(QWidget):
                 color: {COLORS['error']};
                 border: none; background: transparent;
             """)
+            icon_name = self.STAGES[idx][0]
+            from gui.theme import get_icon
+            frame.layout().itemAt(0).widget().setPixmap(get_icon(icon_name, color=COLORS['error']).pixmap(12, 12))
         else:  # idle
             frame.setStyleSheet(f"""
                 QFrame {{
@@ -147,6 +159,9 @@ class PipelineStageIndicator(QWidget):
                 color: {COLORS['text_dim']};
                 border: none; background: transparent;
             """)
+            icon_name = self.STAGES[idx][0]
+            from gui.theme import get_icon
+            frame.layout().itemAt(0).widget().setPixmap(get_icon(icon_name, color=COLORS['text_dim']).pixmap(12, 12))
 
     def reset_all(self):
         """Reset all stages to idle state."""
@@ -207,8 +222,10 @@ class HeaderBar(QWidget):
         brand_layout.setContentsMargins(0, 0, 0, 0)
         brand_layout.setSpacing(8)
 
-        shield_icon = QLabel("🛡️")
-        shield_icon.setStyleSheet("font-size: 22px; border: none; background: transparent;")
+        shield_icon = QLabel()
+        from gui.theme import get_icon
+        shield_icon.setPixmap(get_icon("fa5s.shield-alt", color=COLORS['accent_cyan']).pixmap(22, 22))
+        shield_icon.setStyleSheet("border: none; background: transparent;")
         brand_layout.addWidget(shield_icon)
 
         title = QLabel("MalScope")

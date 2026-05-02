@@ -1,0 +1,4 @@
+MalScope Mock Report
+===================
+Scope: all
+Files Included: []

@@ -41,11 +41,13 @@ COLORS = {
     "severity_low":      "#22c55e",
     "severity_info":     "#3b82f6",
 
-    # Semantic
+    # Semantic States
     "success":        "#22c55e",
     "warning":        "#f59e0b",
     "error":          "#ef4444",
     "info":           "#06b6d4",
+    "state_idle":     "#64748b",
+    "state_scanning": "#3b82f6",
 
     # Pipeline
     "pipeline_idle":     "#374151",
@@ -109,6 +111,14 @@ def score_color(score: float) -> str:
         return COLORS["severity_high"]
     else:
         return COLORS["severity_low"]
+
+
+def get_icon(name: str, color: str = None) -> 'QIcon':
+    """Helper to fetch a qtawesome icon with the correct color."""
+    import qtawesome as qta
+    if color is None:
+        color = COLORS["text_primary"]
+    return qta.icon(name, color=color)
 
 
 def build_global_stylesheet() -> str:
