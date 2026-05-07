@@ -1,7 +1,11 @@
+import os
 import requests
+from dotenv import load_dotenv
 
-# Placeholder for the VirusTotal API Key
-API_KEY = "YOUR_API_KEY_HERE"
+load_dotenv()
+
+# Load the VirusTotal API Key from the environment
+API_KEY = os.environ.get("VT_API_KEY")
 
 def get_vt_report(file_hash):
     """
@@ -30,15 +34,18 @@ def get_vt_report(file_hash):
             malicious_count = stats.get("malicious", 0)
             total_count = sum(stats.values())
             
-            return f"{malicious_count}/{total_count} malicious"
+            if malicious_count > 0:
+                return f"Detections: {malicious_count}/{total_count}"
+            else:
+                return "Clean"
             
         elif response.status_code == 404:
             # Hash not found on VirusTotal
             return "Not found in VT"
         elif response.status_code == 401:
-            return "VT API Key Invalid or Missing"
+            return "Invalid Key"
         elif response.status_code == 429:
-            return "VT API Quota Exceeded"
+            return "Key Limit Exceeded"
         else:
             return f"VT API Error ({response.status_code})"
             
