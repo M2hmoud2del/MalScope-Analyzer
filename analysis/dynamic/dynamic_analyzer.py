@@ -251,7 +251,8 @@ def _predict_process_behavior(file_path, strings, api_analysis):
 
         # Check if file would spawn known suspicious processes
         for proc_name, description in SUSPICIOUS_PROCESSES.items():
-            if proc_name.replace(".exe", "") in s_lower and len(s) < 200:
+            proc_base = proc_name.replace(".exe", "")
+            if re.search(r'\b' + re.escape(proc_base) + r'\b', s_lower) and len(s) < 200:
                 processes.append({
                     "name": proc_name,
                     "pid": 0,
@@ -668,7 +669,7 @@ if __name__ == "__main__":
     print(f"\n--- Results ---")
     print(f"  Processes:     {len(result['processes'])}")
     for p in result["processes"]:
-        print(f"    [{p['pid']}] {p['name']} → {p['action']}")
+        print(f"    [{p['pid']}] {p['name']} -> {p['action']}")
 
     print(f"\n  Network:       {len(result['network_activity'])}")
     for n in result["network_activity"]:
@@ -689,7 +690,7 @@ if __name__ == "__main__":
     print(f"\n  Score:         {result['score']}/10.0")
     print(f"  Indicators:    {len(result['suspicious_indicators'])}")
     for ind in result["suspicious_indicators"]:
-        print(f"    ⚠ {ind}")
+        print(f"    [!] {ind}")
 
     # Verify output format
     print("\n--- Output Format Verification ---")
