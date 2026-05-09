@@ -105,7 +105,7 @@ MalScope/
 
 ### Responsibilities:
 
-* File hashing (SHA256)
+* 5-Hash Verification (MD5, SHA1, SHA256, SHA512, IMPHASH)
 * String extraction
 * VirusTotal lookup
 * PE file inspection
@@ -114,7 +114,13 @@ MalScope/
 
 ```json
 {
-  "hash": "...",
+  "hashes": {
+    "md5": "...",
+    "sha1": "...",
+    "sha256": "...",
+    "sha512": "...",
+    "imphash": "..."
+  },
   "urls": [],
   "ips": [],
   "vt_result": "5/70 malicious"
@@ -147,8 +153,9 @@ MalScope/
 
 ### Responsibilities:
 
-* Combine static + dynamic results
-* Generate risk score
+* Combine static + dynamic results using a **Weighted Scoring System (60/40)**
+  * The final Risk Score (0-10) is calculated as: `(Static Score * 0.6) + (Dynamic Score * 0.4)`
+* Generate final risk score and verdict
 
 ### Output:
 

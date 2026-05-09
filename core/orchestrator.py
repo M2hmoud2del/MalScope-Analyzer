@@ -201,36 +201,33 @@ class ScanWorker(QObject):
                 except Exception as e:
                     self.signals.log_message.emit("ERROR", f"Dynamic module error: {str(e)}")
 
-            # Extract static score from VirusTotal malicious detections
+            # Extract static score from VirusTotal malicious detections (Normalized 0-10)
             vt_res = static_data.get("vt_result", {})
+            static_score = 0.0
             if isinstance(vt_res, dict):
-                static_score = vt_res.get("detections", {}).get("malicious", 0)
-            else:
-                static_score = 0
+                detections = vt_res.get("detections", {})
+                malicious = detections.get("malicious", 0)
+                total = detections.get("total", 0)
+                if total > 0:
+                    static_score = (malicious / total) * 10.0
                 
-            # Ensure this score is passed correctly to the results dictionary that the UI table reads from
-            static_data["score"] = static_score
+            # Store rounded static score for GUI consistency
+            static_data["score"] = round(static_score, 1)
 
-            # Scoring
-            score = 0
+            # Scoring (Normalized 0-10)
+            dynamic_score = 0.0
             if dynamic_data:
-                dynamic_score = dynamic_data.get("score", 0.0)
-                score = int(dynamic_score * 10)  # Map 0-10 to 0-100
-            else:
-                # Fallback to static scoring
-                if static_score > 0:
-                    score = static_score
-                elif float(static_data.get("entropy", 0)) > 7.0:
-                    score = 60
-                elif len(static_data.get("urls", [])) > 0:
-                    score = 30
-                else:
-                    score = 0
+                dynamic_score = float(dynamic_data.get("score", 0.0))
+                # Store rounded dynamic score for GUI consistency
+                dynamic_data["score"] = round(dynamic_score, 1)
 
-            # Determine verdict
-            if score >= 70:
+            # Final Risk Score (60/40 Weighted)
+            score = round((static_score * 0.6) + (dynamic_score * 0.4), 1)
+
+            # Determine verdict (0-10 scale)
+            if score >= 7.0:
                 verdict = "malicious"
-            elif score >= 30:
+            elif score >= 3.0:
                 verdict = "suspicious"
             else:
                 verdict = "clean"
