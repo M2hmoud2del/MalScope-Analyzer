@@ -4,20 +4,39 @@ from .strings_analyzer import analyze_strings
 from .pe_analysis import analyze_pe
 from .vt_client import get_vt_report
 
-def calculate_sha256(file_path):
+def calculate_hashes(file_path):
     """
-    Calculates the SHA256 hash of a file.
+    Calculates MD5, SHA-1, SHA-256, and SHA-512 hashes of a file.
+    Returns a dictionary of the hashes.
     """
-    sha256_hash = hashlib.sha256()
+    hashes = {
+        "md5": hashlib.md5(),
+        "sha1": hashlib.sha1(),
+        "sha256": hashlib.sha256(),
+        "sha512": hashlib.sha512()
+    }
     try:
         with open(file_path, "rb") as f:
             # Read in chunks to handle large files efficiently
             for byte_block in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(byte_block)
-        return sha256_hash.hexdigest()
+                for hash_obj in hashes.values():
+                    hash_obj.update(byte_block)
+        
+        return {name: hash_obj.hexdigest() for name, hash_obj in hashes.items()}
     except Exception as e:
         print(f"Error hashing file {file_path}: {e}")
-        return None
+        return {name: "Error calculating hash" for name in hashes}
+
+def clean_none_values(data):
+    """
+    Recursively replaces all None values with empty strings ("")
+    to ensure JSON serialization compatibility.
+    """
+    if isinstance(data, dict):
+        return {k: clean_none_values(v if v is not None else "") for k, v in data.items()}
+    elif isinstance(data, list):
+        return [clean_none_values(v if v is not None else "") for v in data]
+    return data if data is not None else ""
 
 def run_static_analysis(file_path):
     """
@@ -25,7 +44,7 @@ def run_static_analysis(file_path):
     Aggregates data from different static analysis submodules.
     """
     # 1. File Hashing
-    file_hash = calculate_sha256(file_path)
+    file_hashes = calculate_hashes(file_path)
     
     # 2. String Extraction & Geolocation
     strings_data = {
@@ -38,17 +57,21 @@ def run_static_analysis(file_path):
         
     # 3. VirusTotal Lookup
     vt_result = "Not found in VT"
-    if file_hash and file_hash != "Error calculating hash":
-        vt_result = get_vt_report(file_hash)
+    sha256_hash = file_hashes.get("sha256", "Error calculating hash")
+    if sha256_hash and sha256_hash != "Error calculating hash":
+        vt_result = get_vt_report(sha256_hash)
     
     # 4. PE Analysis
     pe_result = {}
     if os.path.exists(file_path):
         pe_result = analyze_pe(file_path)
+        
+    # Add imphash to the hashes dictionary
+    file_hashes["imphash"] = pe_result.get("imphash", "")
     
     # Assemble the final result dictionary
     result = {
-        "hash": file_hash if file_hash else "Error calculating hash",
+        "hashes": file_hashes,
         "strings": {
             "priority_strings": strings_data.get("priority_strings", {}),
             "general_strings": strings_data.get("general_strings", {})
@@ -69,4 +92,7 @@ def run_static_analysis(file_path):
         "vt_result": vt_result
     }
     
-    return result
+    # Clean the results before returning
+    cleaned_results = clean_none_values(result)
+    
+    return cleaned_results

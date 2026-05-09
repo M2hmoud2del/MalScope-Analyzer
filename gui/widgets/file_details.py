@@ -85,9 +85,24 @@ class StaticAnalysisTab(QScrollArea):
 
         # Hashes
         self.layout.addWidget(_SectionHeader("🔒  FILE HASHES"))
-        self.layout.addWidget(_InfoRow("SHA256", sha256 or static_data.get("hash", "N/A"), copyable=True))
-        if "md5" in static_data:
-            self.layout.addWidget(_InfoRow("MD5", static_data["md5"], copyable=True))
+        
+        hashes_dict = static_data.get("hashes", {})
+        
+        md5_val = hashes_dict.get("md5") or static_data.get("md5", "")
+        sha1_val = hashes_dict.get("sha1", "")
+        sha256_val = hashes_dict.get("sha256") or sha256 or static_data.get("hash", "")
+        sha512_val = hashes_dict.get("sha512", "")
+        imphash_val = hashes_dict.get("imphash", "")
+
+        self.layout.addWidget(_InfoRow("MD5", md5_val if md5_val else "N/A", copyable=True))
+        self.layout.addWidget(_InfoRow("SHA-1", sha1_val if sha1_val else "N/A", copyable=True))
+        self.layout.addWidget(_InfoRow("SHA-256", sha256_val if sha256_val else "N/A", copyable=True))
+        self.layout.addWidget(_InfoRow("SHA-512", sha512_val if sha512_val else "N/A", copyable=True))
+        
+        if imphash_val:
+            self.layout.addWidget(_InfoRow("IMPHASH", imphash_val, copyable=True))
+        else:
+            self.layout.addWidget(_InfoRow("IMPHASH", "N/A", copyable=True))
 
         # VirusTotal
         vt = static_data.get("vt_result", "")
