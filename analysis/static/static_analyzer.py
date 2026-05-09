@@ -23,21 +23,16 @@ def run_static_analysis(file_path):
     """
     Entry point for the Static Analysis Module.
     Aggregates data from different static analysis submodules.
-    
-    Expected Output Format:
-    {
-      "hash": "...",
-      "urls": [],
-      "ips": [],
-      "vt_result": "...",
-      "pe_info": {...}
-    }
     """
     # 1. File Hashing
     file_hash = calculate_sha256(file_path)
     
-    # 2. String Extraction
-    strings_data = {"urls": [], "ips": []}
+    # 2. String Extraction & Geolocation
+    strings_data = {
+        "priority_strings": {"urls": [], "ips": [], "file_paths": [], "registry_keys": []},
+        "general_strings": {"ascii": [], "unicode": []},
+        "network_geolocation": {"urls": [], "ips": []}
+    }
     if os.path.exists(file_path):
         strings_data = analyze_strings(file_path)
         
@@ -54,10 +49,24 @@ def run_static_analysis(file_path):
     # Assemble the final result dictionary
     result = {
         "hash": file_hash if file_hash else "Error calculating hash",
-        "urls": strings_data.get("urls", []),
-        "ips": strings_data.get("ips", []),
-        "vt_result": vt_result,
-        "pe_info": pe_result
+        "strings": {
+            "priority_strings": strings_data.get("priority_strings", {}),
+            "general_strings": strings_data.get("general_strings", {})
+        },
+        "imports_exports": pe_result.get("imports_exports", {"imports": {}, "exports": []}),
+        "signature": pe_result.get("signature", {"signed": False, "details": None}),
+        "packer_info": pe_result.get("packer_info", {"detected": False, "packers": []}),
+        "resources": pe_result.get("resources", []),
+        "compile_time": pe_result.get("compile_time", "Unknown"),
+        "network_geolocation": strings_data.get("network_geolocation", {"urls": [], "ips": []}),
+        "pe_info": {
+            "is_pe": pe_result.get("is_pe", False),
+            "error": pe_result.get("error"),
+            "machine_type": pe_result.get("machine_type"),
+            "sections": pe_result.get("sections", []),
+            "suspicious_indicators": pe_result.get("suspicious_indicators", [])
+        },
+        "vt_result": vt_result
     }
     
     return result
