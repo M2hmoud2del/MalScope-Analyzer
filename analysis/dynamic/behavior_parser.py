@@ -401,6 +401,20 @@ def calculate_dynamic_score(parsed_results):
             score += 2.0
             indicators.append("Scheduled task creation detected (persistence mechanism)")
 
+        # Fallback for other known suspicious processes (like reg.exe)
+        elif name in SUSPICIOUS_PROCESSES:
+            score += 1.5
+            indicators.append(f"Suspicious process executed: {proc.get('name', name)} ({SUSPICIOUS_PROCESSES[name]})")
+
+        # Check for specific suspicious actions (like self-execution or injection)
+        action = proc.get("action", "")
+        if "Self-execution" in action:
+            score += 1.0
+            indicators.append(f"Executable self-execution detected: {proc.get('name', name)}")
+        elif "injection" in action.lower() or "hollowing" in action.lower():
+            score += 3.0
+            indicators.append(f"Process injection/hollowing detected: {proc.get('name', name)}")
+
     # ── Network Analysis (Wireshark / FakeNet-NG topics) ──
 
     for conn in network:
@@ -517,7 +531,7 @@ if __name__ == "__main__":
     print("\n--- Parsing Processes ---")
     processes = parse_process_activity(test_processes_raw)
     for p in processes:
-        print(f"  [{p['pid']}] {p['name']} → {p['action']}")
+        print(f"  [{p['pid']}] {p['name']} -> {p['action']}")
 
     print("\n--- Parsing Network Activity ---")
     network = parse_network_activity(test_network_raw)
@@ -560,7 +574,7 @@ if __name__ == "__main__":
     print(f"  Score: {score}/10.0")
     print(f"  Indicators ({len(indicators)}):")
     for ind in indicators:
-        print(f"    ⚠ {ind}")
+        print(f"    [!] {ind}")
 
     # 4. Verify output format
     print("\n--- Output Format Verification ---")
