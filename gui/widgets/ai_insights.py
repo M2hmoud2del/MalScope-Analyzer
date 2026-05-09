@@ -36,11 +36,16 @@ class AIInsightsTab(QScrollArea):
         self.layout.addWidget(lbl)
         self.layout.addStretch()
 
-    def _clear(self):
-        while self.layout.count():
-            child = self.layout.takeAt(0)
+    def _clear(self, layout=None):
+        if layout is None:
+            layout = self.layout
+        while layout.count():
+            child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+            elif child.layout():
+                self._clear(child.layout())
+                child.layout().deleteLater()
 
     def load_data(self, ai_data: dict, verdict: str = ""):
         self._clear()
