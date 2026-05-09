@@ -104,7 +104,22 @@ class StaticAnalysisTab(QScrollArea):
             self.layout.addWidget(_InfoRow("Value", f"{ent:.4f}" if isinstance(ent, float) else str(ent), value_color=ent_color))
 
         # Suspicious strings
-        strings = static_data.get("strings", static_data.get("suspicious_strings", []))
+        raw_strings = static_data.get("strings", static_data.get("suspicious_strings", []))
+        strings = []
+        if isinstance(raw_strings, dict):
+            pri = raw_strings.get("priority_strings", {})
+            if isinstance(pri, dict):
+                for items in pri.values():
+                    if isinstance(items, list):
+                        strings.extend(items)
+            gen = raw_strings.get("general_strings", {})
+            if isinstance(gen, dict):
+                for items in gen.values():
+                    if isinstance(items, list):
+                        strings.extend(items)
+        elif isinstance(raw_strings, list):
+            strings = raw_strings
+            
         if strings:
             self.layout.addWidget(_SectionHeader("📝  SUSPICIOUS STRINGS"))
             text = QTextEdit()
@@ -117,6 +132,9 @@ class StaticAnalysisTab(QScrollArea):
 
         # URLs
         urls = static_data.get("urls", [])
+        if not urls and "network_geolocation" in static_data:
+            urls = static_data["network_geolocation"].get("urls", [])
+            
         if urls:
             self.layout.addWidget(_SectionHeader("🌐  EXTRACTED URLs"))
             for url in urls[:20]:
@@ -127,6 +145,9 @@ class StaticAnalysisTab(QScrollArea):
 
         # IPs
         ips = static_data.get("ips", [])
+        if not ips and "network_geolocation" in static_data:
+            ips = static_data["network_geolocation"].get("ips", [])
+            
         if ips:
             self.layout.addWidget(_SectionHeader("📡  EXTRACTED IPs"))
             for ip in ips[:20]:

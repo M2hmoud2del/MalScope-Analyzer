@@ -182,17 +182,6 @@ class ScanWorker(QObject):
                     return
                 QThread.msleep(10)
             
-            # Mock scoring based on file extension
-            verdict = "clean"
-            score = 10
-            if filename.endswith(".exe") or filename.endswith(".dll"):
-                verdict = "malicious"
-                score = 95
-            elif filename.endswith(".pdf") or filename.endswith(".doc"):
-                verdict = "suspicious"
-                score = 55
-                
-            # Combine results
             # 1. RUN THE REAL ANALYSIS ENGINES
             try:
                 from analysis.dynamic.dynamic_analyzer import run_dynamic_analysis
@@ -202,17 +191,31 @@ class ScanWorker(QObject):
                 dynamic_data = {}
 
             try:
-                # Assuming your team named the static file 'static_analyzer.py'
                 from analysis.static.static_analyzer import run_static_analysis 
                 static_data = run_static_analysis(file_path)
             except Exception as e:
                 self.signals.log_message.emit("ERROR", f"Static module error: {str(e)}")
                 static_data = {}
 
+            # Calculate real score based on dynamic analysis
+            dynamic_score = dynamic_data.get("score", 0.0)
+            score = int(dynamic_score * 10)  # Map 0-10 to 0-100
+
+            # Determine verdict
+            if score >= 70:
+                verdict = "malicious"
+            elif score >= 30:
+                verdict = "suspicious"
+            else:
+                verdict = "clean"
+                
+            # Get real SHA256
+            sha256 = static_data.get("hash", "Unknown")
+
             # 2. Combine results using the LIVE data
             result = {
                 "file": filename,
-                "sha256": "abcdef1234567890" + str(i),
+                "sha256": sha256,
                 "verdict": verdict,
                 "score": score,
                 "static": static_data,
