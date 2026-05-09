@@ -141,7 +141,12 @@ class MainWindow(QMainWindow):
             if row >= 0:
                 item = self.results_table.table.item(row, 0)
                 if item:
-                    files = [item.text()]
+                    filename = item.text()
+                    # --- BULLETPROOF FIX: Pull the real dictionary from our cache! ---
+                    if hasattr(self, 'scan_cache') and filename in self.scan_cache:
+                        files = [self.scan_cache[filename]]
+                    else:
+                        files = [filename] # Safety fallback
         self.signals.request_report.emit(scope, files)
 
     def _route_row_selection(self, file_data: dict):
@@ -165,6 +170,12 @@ class MainWindow(QMainWindow):
         self.pipeline_viz.set_active_file("", complete=True)
 
     def _handle_file_result(self, result: dict):
+        # --- BULLETPROOF FIX: Save the real dictionary to a hidden cache ---
+        if not hasattr(self, 'scan_cache'):
+            self.scan_cache = {}
+        self.scan_cache[result['file']] = result
+        # -------------------------------------------------------------------
+        
         self.results_table.add_result(result)
         # MainWindow updates the stats panel based on the result, instead of inline logic
         verdict = result.get("verdict", "unknown").lower()
