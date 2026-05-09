@@ -27,7 +27,7 @@ import requests
 
 # Placeholder for the Hybrid Analysis API Key
 # Register at https://www.hybrid-analysis.com/ to obtain a free API key
-API_KEY = "YOUR_API_KEY_HERE"
+API_KEY = "h9wz6hxgf93c4ccbdb28iglp83112b047e6ecjwb2c3709e5thzmuffs3a212208"
 
 # Hybrid Analysis API base URL
 BASE_URL = "https://www.hybrid-analysis.com/api/v2"
