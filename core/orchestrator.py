@@ -29,8 +29,8 @@ class Orchestrator(QObject):
         self.signals.request_stop.connect(self.stop_scan)
         self.signals.request_report.connect(self.generate_report)
 
-    @pyqtSlot(str)
-    def start_scan(self, folder_path: str):
+    @pyqtSlot(str, str)
+    def start_scan(self, folder_path: str, mode: str = "Full Analysis"):
         try:
             if self.worker_thread and self.worker_thread.isRunning():
                 self.signals.log_message.emit("WARN", "Scan already in progress.")
@@ -38,11 +38,11 @@ class Orchestrator(QObject):
         except RuntimeError:
             self.worker_thread = None
 
-        self.signals.log_message.emit("INFO", f"Initializing scan for {folder_path}...")
+        self.signals.log_message.emit("INFO", f"Initializing {mode} for {folder_path}...")
         self.signals.scan_started.emit()
         
         # Instantiate and start the worker thread to prevent UI freezing
-        self.worker = ScanWorker(folder_path, self.signals)
+        self.worker = ScanWorker(folder_path, mode, self.signals)
         self.worker_thread = QThread()
         self.worker.moveToThread(self.worker_thread)
         
@@ -89,42 +89,50 @@ class Orchestrator(QObject):
 
         try:
             report_gen = ReportGenerator()
+            output_paths = []
             
-            # --- THE SAFETY NET ---
-            if isinstance(files[0], str):
-                # The UI sent a string! Use fallback data for the presentation.
-                filename = files[0]
-                target_data = {
-                    "file": filename,
-                    "verdict": "suspicious" if filename.endswith((".pdf", ".doc")) else "clean",
-                    "score": 55 if filename.endswith((".pdf", ".doc")) else 10,
-                    "static": {
-                        "entropy": 6.8, 
-                        "pe_sections": 5,
-                        "urls": ["http://malicious.com/payload.exe"]
-                    },
-                    "dynamic": {
-                        "processes": ["cmd.exe (PID: 4512)"],
-                        "network": ["Outbound to 192.168.1.100:443"]
+            total_files = len(files)
+            for idx, item in enumerate(files):
+                if isinstance(item, str):
+                    # Fallback presentation mock
+                    filename = item
+                    target_data = {
+                        "file": filename,
+                        "verdict": "suspicious" if filename.endswith((".pdf", ".doc")) else "clean",
+                        "score": 55 if filename.endswith((".pdf", ".doc")) else 10,
+                        "static": {
+                            "entropy": 6.8, "pe_sections": 5, "urls": ["http://malicious.com/payload.exe"]
+                        },
+                        "dynamic": {
+                            "processes": ["cmd.exe (PID: 4512)"], "network": ["Outbound to 192.168.1.100:443"]
+                        }
                     }
-                }
+                    from ai.llm_analyzer import LLMAnalyzer
+                    ai_text = LLMAnalyzer().analyze(target_data)
+                else:
+                    # Live Data
+                    target_data = item
+                    ai_data = target_data.get('ai_explanation', {})
+                    ai_text = ai_data.get('explanation', str(ai_data)) if isinstance(ai_data, dict) else str(ai_data)
                 
-                # Fetch a quick AI summary for the PDF
-                from ai.llm_analyzer import LLMAnalyzer
-                ai_text = LLMAnalyzer().analyze(target_data)
+                # Generate PDF for this item
+                pdf_path = report_gen.generate_pdf(target_data, ai_text)
+                output_paths.append(pdf_path)
                 
+                # Update progress
+                progress = int(((idx + 1) / total_files) * 100)
+                self.signals.report_progress.emit(progress)
+            
+            if len(output_paths) == 1:
+                final_path = os.path.abspath(output_paths[0])
+                msg = f"PDF Report saved to: {final_path}"
             else:
-                # The UI sent the proper dictionary! Use the live data.
-                target_data = files[0]
-                ai_data = target_data.get('ai_explanation', {})
-                ai_text = ai_data.get('explanation', str(ai_data)) if isinstance(ai_data, dict) else str(ai_data)
-            
-            # Generate the PDF
-            pdf_path = report_gen.generate_pdf(target_data, ai_text)
-            
+                final_path = os.path.abspath(report_gen.reports_dir)
+                msg = f"Generated {len(output_paths)} PDF Reports in: {final_path}"
+                
             self.signals.report_progress.emit(100)
-            self.signals.report_completed.emit(os.path.abspath(pdf_path))
-            self.signals.log_message.emit("SUCCESS", f"PDF Report saved to: {pdf_path}")
+            self.signals.report_completed.emit(final_path)
+            self.signals.log_message.emit("SUCCESS", msg)
             
         except Exception as e:
             self.signals.log_message.emit("ERROR", f"PDF Generation failed: {str(e)}")
@@ -133,9 +141,10 @@ class ScanWorker(QObject):
     """Worker object that runs the actual blocking analysis pipeline."""
     finished = pyqtSignal()
     
-    def __init__(self, folder_path, signals):
+    def __init__(self, folder_path, mode, signals):
         super().__init__()
         self.folder_path = folder_path
+        self.mode = mode
         self.signals = signals
         self.is_running = True
 
@@ -166,30 +175,11 @@ class ScanWorker(QObject):
             
             # --- Pipeline Execution Mock ---
             self.signals.pipeline_stage_changed.emit(filename, "static")
-            for _ in range(30):
+            for _ in range(10): # Shorter mock delay
                 if not self.is_running:
                     return
                 QThread.msleep(10)
-            self.signals.pipeline_stage_changed.emit(filename, "dynamic")
-            for _ in range(30):
-                if not self.is_running:
-                    return
-                QThread.msleep(10)
-            
-            self.signals.pipeline_stage_changed.emit(filename, "ai")
-            for _ in range(30):
-                if not self.is_running:
-                    return
-                QThread.msleep(10)
-            
-            # 1. RUN THE REAL ANALYSIS ENGINES
-            try:
-                from analysis.dynamic.dynamic_analyzer import run_dynamic_analysis
-                dynamic_data = run_dynamic_analysis(file_path) 
-            except Exception as e:
-                self.signals.log_message.emit("ERROR", f"Dynamic module error: {str(e)}")
-                dynamic_data = {}
-
+                
             try:
                 from analysis.static.static_analyzer import run_static_analysis 
                 static_data = run_static_analysis(file_path)
@@ -197,9 +187,36 @@ class ScanWorker(QObject):
                 self.signals.log_message.emit("ERROR", f"Static module error: {str(e)}")
                 static_data = {}
 
-            # Calculate real score based on dynamic analysis
-            dynamic_score = dynamic_data.get("score", 0.0)
-            score = int(dynamic_score * 10)  # Map 0-10 to 0-100
+            # Dynamic Analysis (Skipped in Quick Scan and Static Only)
+            dynamic_data = {}
+            if self.mode == "Full Analysis":
+                self.signals.pipeline_stage_changed.emit(filename, "dynamic")
+                for _ in range(10):
+                    if not self.is_running:
+                        return
+                    QThread.msleep(10)
+                try:
+                    from analysis.dynamic.dynamic_analyzer import run_dynamic_analysis
+                    dynamic_data = run_dynamic_analysis(file_path) 
+                except Exception as e:
+                    self.signals.log_message.emit("ERROR", f"Dynamic module error: {str(e)}")
+
+            # Scoring
+            score = 0
+            if dynamic_data:
+                dynamic_score = dynamic_data.get("score", 0.0)
+                score = int(dynamic_score * 10)  # Map 0-10 to 0-100
+            else:
+                # Fallback to static scoring (VT detections or Entropy)
+                vt = static_data.get("vt_result", "")
+                if "malicious" in str(vt).lower():
+                    score = 90
+                elif float(static_data.get("entropy", 0)) > 7.0:
+                    score = 60
+                elif len(static_data.get("urls", [])) > 0:
+                    score = 30
+                else:
+                    score = 0
 
             # Determine verdict
             if score >= 70:
@@ -211,16 +228,17 @@ class ScanWorker(QObject):
                 
             # Get real SHA256
             sha256 = static_data.get("hash", "Unknown")
-
-            # 2. Combine results using the LIVE data
-            result = {
-                "file": filename,
-                "sha256": sha256,
-                "verdict": verdict,
-                "score": score,
-                "static": static_data,
-                "dynamic": dynamic_data,
-                "ai_explanation": {
+            
+            # AI Analysis (Skipped in Static Only)
+            ai_explanation = {}
+            if self.mode != "Static Only":
+                self.signals.pipeline_stage_changed.emit(filename, "ai")
+                for _ in range(10):
+                    if not self.is_running:
+                        return
+                    QThread.msleep(10)
+                
+                ai_explanation = {
                     "classification": verdict.capitalize(),
                     "confidence": "AI Evaluated",
                     "explanation": LLMAnalyzer().analyze({
@@ -232,7 +250,18 @@ class ScanWorker(QObject):
                     }),
                     "recommendations": ["Please review the detailed AI Threat Summary above."]
                 }
+
+            # Combine results
+            result = {
+                "file": filename,
+                "sha256": sha256,
+                "verdict": verdict,
+                "score": score,
+                "static": static_data,
+                "dynamic": dynamic_data,
+                "ai_explanation": ai_explanation
             }
+            
             
             summary[verdict] += 1
             summary["avg_score"] += score

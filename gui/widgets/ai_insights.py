@@ -86,11 +86,10 @@ class AIInsightsTab(QScrollArea):
             exp_header.setStyleSheet(f"color:{COLORS['accent_cyan']};font-size:10px;font-weight:700;letter-spacing:0.5px;padding:4px 0 2px 0;")
             self.layout.addWidget(exp_header)
             
-            exp_text = QTextEdit()
-            exp_text.setReadOnly(True)
-            exp_text.setPlainText(explanation)
-            exp_text.setStyleSheet(f"QTextEdit{{background:{COLORS['bg_input']};color:{COLORS['text_primary']};border:1px solid {COLORS['border']};border-radius:4px;padding:8px;font-size:12px;}}")
-            exp_text.setMinimumHeight(100)
+            exp_text = QLabel(explanation)
+            exp_text.setWordWrap(True)
+            exp_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            exp_text.setStyleSheet(f"QLabel{{background:{COLORS['bg_input']};color:{COLORS['text_primary']};border:1px solid {COLORS['border']};border-radius:4px;padding:8px;font-size:12px;}}")
             self.layout.addWidget(exp_text)
 
         # Recommendations

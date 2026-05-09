@@ -46,6 +46,10 @@ class PipelineNode(QFrame):
             self.setStyleSheet(f"PipelineNode,QFrame{{background-color:{COLORS['error']}10;border:1px solid {COLORS['error']}60;border-radius:6px;}}")
             self.name_lbl.setStyleSheet(f"color:{COLORS['error']};font-size:10px;font-weight:700;border:none;background:transparent;")
             self.status_lbl.setText("✗"); self.status_lbl.setStyleSheet(f"color:{COLORS['error']};font-size:12px;font-weight:bold;border:none;background:transparent;")
+        elif state == "skipped":
+            self.setStyleSheet(f"PipelineNode,QFrame{{background-color:{COLORS['bg_elevated']};border:1px solid {COLORS['border_light']};border-radius:6px;}}")
+            self.name_lbl.setStyleSheet(f"color:{COLORS['text_dim']};font-size:10px;font-weight:700;text-decoration:line-through;border:none;background:transparent;")
+            self.status_lbl.setText("✗"); self.status_lbl.setStyleSheet(f"color:{COLORS['text_dim']};font-size:12px;font-weight:bold;border:none;background:transparent;")
         else:
             self._apply_idle()
 
@@ -113,28 +117,32 @@ class PipelineVisualizer(QWidget):
         self.current_file_label.setText(f"Processing: {filename}")
         self.current_file_label.show()
 
-    def set_active_file(self, filename: str, complete: bool = False):
+    def set_active_file(self, filename: str, complete: bool = False, skipped_stages: list = None):
+        skipped_stages = skipped_stages or []
         if complete:
             self.current_file_label.setText("Scan Complete")
             self.current_file_label.show()
-            for node in self.nodes.values():
-                node.set_state("completed")
+            for node_name, node in self.nodes.items():
+                if node_name in skipped_stages:
+                    node.set_state("skipped")
+                else:
+                    node.set_state("completed")
         else:
             self.set_current_file(filename)
             self.reset()
 
-    def update_stage(self, filename: str, stage: str):
+    def update_stage(self, filename: str, stage: str, skipped_stages: list = None):
         self.set_current_file(filename)
-        # Mark all stages before this one as completed
+        skipped_stages = skipped_stages or []
         found = False
         for node_name, node in self.nodes.items():
             if node_name == (stage.lower().split()[0] if ' ' in stage else stage.lower()):
                 node.set_state("active")
                 found = True
             elif not found:
-                node.set_state("completed")
+                node.set_state("skipped" if node_name in skipped_stages else "completed")
             else:
-                node.set_state("idle")
+                node.set_state("skipped" if node_name in skipped_stages else "idle")
 
     def reset_all(self):
         for node in self.nodes.values():

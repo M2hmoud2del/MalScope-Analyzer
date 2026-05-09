@@ -124,7 +124,7 @@ class StaticAnalysisTab(QScrollArea):
             self.layout.addWidget(_SectionHeader("📝  SUSPICIOUS STRINGS"))
             text = QTextEdit()
             text.setReadOnly(True)
-            text.setMaximumHeight(120)
+            text.setMinimumHeight(150)
             text.setFont(QFont("Consolas", 9))
             text.setStyleSheet(f"QTextEdit{{background:{COLORS['bg_input']};color:{COLORS['warning']};border:1px solid {COLORS['border']};border-radius:4px;padding:4px;}}")
             text.setPlainText("\n".join(str(s) for s in strings[:50]))
@@ -139,6 +139,7 @@ class StaticAnalysisTab(QScrollArea):
             self.layout.addWidget(_SectionHeader("🌐  EXTRACTED URLs"))
             for url in urls[:20]:
                 lbl = QLabel(f"• {url}")
+                lbl.setWordWrap(True)
                 lbl.setStyleSheet(f"color:{COLORS['accent_cyan']};font-size:10px;padding-left:8px;border:none;background:transparent;")
                 lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 self.layout.addWidget(lbl)
@@ -152,7 +153,9 @@ class StaticAnalysisTab(QScrollArea):
             self.layout.addWidget(_SectionHeader("📡  EXTRACTED IPs"))
             for ip in ips[:20]:
                 lbl = QLabel(f"• {ip}")
+                lbl.setWordWrap(True)
                 lbl.setStyleSheet(f"color:{COLORS['warning']};font-size:10px;padding-left:8px;border:none;background:transparent;")
+                lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 self.layout.addWidget(lbl)
 
         self.layout.addStretch()
@@ -195,18 +198,34 @@ class DynamicAnalysisTab(QScrollArea):
         procs = dynamic_data.get("processes", [])
         if procs:
             self.layout.addWidget(_SectionHeader("⚙️  SPAWNED PROCESSES"))
-            tree = QTreeWidget()
-            tree.setHeaderLabels(["Process", "PID", "Action"])
-            tree.setMaximumHeight(140)
-            tree.setStyleSheet(f"QTreeWidget{{background:{COLORS['bg_input']};border:1px solid {COLORS['border']};border-radius:4px;}}")
-            tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            tbl_procs = QTableWidget()
+            tbl_procs.setColumnCount(3)
+            tbl_procs.setHorizontalHeaderLabels(["Process", "PID", "Action"])
+            tbl_procs.verticalHeader().setVisible(False)
+            tbl_procs.setWordWrap(True)
+            tbl_procs.setStyleSheet(f"""
+                QTableWidget {{ background: {COLORS['bg_input']}; color: {COLORS['text_primary']}; border: 1px solid {COLORS['border']}; border-radius: 4px; font-size: 11px; }}
+                QHeaderView::section {{ background: {COLORS['bg_secondary']}; color: {COLORS['text_dim']}; border: none; border-bottom: 1px solid {COLORS['border']}; padding: 4px; font-weight: bold; }}
+            """)
+            tbl_procs.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            tbl_procs.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            tbl_procs.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            tbl_procs.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            tbl_procs.setMinimumHeight(200)
+            
             for p in procs[:30]:
+                row = tbl_procs.rowCount()
+                tbl_procs.insertRow(row)
                 if isinstance(p, dict):
-                    item = QTreeWidgetItem([p.get("name",""), str(p.get("pid","")), p.get("action","")])
+                    tbl_procs.setItem(row, 0, QTableWidgetItem(p.get("name","")))
+                    tbl_procs.setItem(row, 1, QTableWidgetItem(str(p.get("pid",""))))
+                    tbl_procs.setItem(row, 2, QTableWidgetItem(p.get("action","")))
                 else:
-                    item = QTreeWidgetItem([str(p), "", ""])
-                tree.addTopLevelItem(item)
-            self.layout.addWidget(tree)
+                    tbl_procs.setItem(row, 0, QTableWidgetItem(str(p)))
+                    tbl_procs.setItem(row, 1, QTableWidgetItem(""))
+                    tbl_procs.setItem(row, 2, QTableWidgetItem(""))
+            tbl_procs.resizeRowsToContents()
+            self.layout.addWidget(tbl_procs)
 
         # Network
         net = dynamic_data.get("network_activity", dynamic_data.get("network", []))
@@ -215,10 +234,19 @@ class DynamicAnalysisTab(QScrollArea):
             tbl = QTableWidget()
             tbl.setColumnCount(4)
             tbl.setHorizontalHeaderLabels(["IP/Host", "Port", "Protocol", "Direction"])
-            tbl.setMaximumHeight(140)
             tbl.verticalHeader().setVisible(False)
+            tbl.setWordWrap(True)
+            tbl.setStyleSheet(f"""
+                QTableWidget {{ background: {COLORS['bg_input']}; color: {COLORS['text_primary']}; border: 1px solid {COLORS['border']}; border-radius: 4px; font-size: 11px; }}
+                QHeaderView::section {{ background: {COLORS['bg_secondary']}; color: {COLORS['text_dim']}; border: none; border-bottom: 1px solid {COLORS['border']}; padding: 4px; font-weight: bold; }}
+            """)
             tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
             tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            tbl.setMinimumHeight(200)
+            
             for n in net[:30]:
                 row = tbl.rowCount(); tbl.insertRow(row)
                 if isinstance(n, dict):
@@ -228,19 +256,20 @@ class DynamicAnalysisTab(QScrollArea):
                     tbl.setItem(row, 3, QTableWidgetItem(n.get("direction","")))
                 else:
                     tbl.setItem(row, 0, QTableWidgetItem(str(n)))
+            tbl.resizeRowsToContents()
             self.layout.addWidget(tbl)
 
         # Registry
         reg = dynamic_data.get("registry_changes", dynamic_data.get("registry", []))
         if reg:
             self.layout.addWidget(_SectionHeader("📋  REGISTRY CHANGES"))
-            text = QTextEdit()
-            text.setReadOnly(True)
-            text.setMaximumHeight(100)
-            text.setFont(QFont("Consolas", 9))
-            text.setStyleSheet(f"QTextEdit{{background:{COLORS['bg_input']};color:{COLORS['severity_critical']};border:1px solid {COLORS['border']};border-radius:4px;padding:4px;}}")
-            text.setPlainText("\n".join(str(r) for r in reg[:30]))
-            self.layout.addWidget(text)
+            reg_text = "\n".join(str(r) for r in reg[:30])
+            lbl = QLabel(reg_text)
+            lbl.setFont(QFont("Consolas", 9))
+            lbl.setWordWrap(True)
+            lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            lbl.setStyleSheet(f"QLabel{{background:{COLORS['bg_input']};color:{COLORS['severity_critical']};border:1px solid {COLORS['border']};border-radius:4px;padding:8px;}}")
+            self.layout.addWidget(lbl)
 
         # File system changes
         fs = dynamic_data.get("file_changes", dynamic_data.get("filesystem", []))
@@ -248,7 +277,9 @@ class DynamicAnalysisTab(QScrollArea):
             self.layout.addWidget(_SectionHeader("📁  FILE SYSTEM CHANGES"))
             for f in fs[:20]:
                 lbl = QLabel(f"• {f}")
+                lbl.setWordWrap(True)
                 lbl.setStyleSheet(f"color:{COLORS['warning']};font-size:10px;padding-left:8px;border:none;background:transparent;")
+                lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 self.layout.addWidget(lbl)
 
         self.layout.addStretch()

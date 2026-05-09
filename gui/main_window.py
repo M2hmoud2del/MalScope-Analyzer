@@ -127,26 +127,32 @@ class MainWindow(QMainWindow):
 
     def _route_start_scan(self):
         folder = self.folder_selector.get_folder_path()
+        mode = self.scan_controls.get_scan_mode()
+        self.current_scan_mode = mode
         if folder:
             self._route_clear_ui()
-            self.signals.request_scan.emit(folder)
+            self.signals.request_scan.emit(folder, mode)
         else:
             self.signals.log_message.emit("WARN", "Please select a folder before starting the scan.")
 
     def _route_generate_report(self):
         scope = "current" if self.report_panel.combo_scope.currentIndex() == 0 else "all"
         files = []
+        
         if scope == "current":
             row = self.results_table.table.currentRow()
             if row >= 0:
                 item = self.results_table.table.item(row, 0)
                 if item:
                     filename = item.text()
-                    # --- BULLETPROOF FIX: Pull the real dictionary from our cache! ---
                     if hasattr(self, 'scan_cache') and filename in self.scan_cache:
                         files = [self.scan_cache[filename]]
                     else:
                         files = [filename] # Safety fallback
+        elif scope == "all":
+            if hasattr(self, 'scan_cache'):
+                files = list(self.scan_cache.values())
+                
         self.signals.request_report.emit(scope, files)
 
     def _route_row_selection(self, file_data: dict):
@@ -166,13 +172,30 @@ class MainWindow(QMainWindow):
 
     def _handle_scan_started(self):
         self.scan_controls.set_scanning(True)
-        self.header.pipeline_indicator.set_stage("input", "active")
+        self.pipeline_viz.reset_all()
+        self.header.pipeline_indicator.reset_all()
+
+    def _get_skipped_stages(self):
+        mode = getattr(self, "current_scan_mode", "Full Analysis")
+        if mode == "Quick Scan":
+            return ["dynamic"]
+        elif mode == "Static Only":
+            return ["dynamic", "ai"]
+        return []
+
+    def _handle_pipeline_stage_changed(self, filename: str, stage: str):
+        skipped = self._get_skipped_stages()
+        self.pipeline_viz.update_stage(filename, stage, skipped_stages=skipped)
+        self.header.pipeline_indicator.set_stage(stage, "active")
+        for s in skipped:
+            self.header.pipeline_indicator.set_stage(s, "skipped")
 
     def _handle_scan_completed(self, summary: dict):
+        skipped = self._get_skipped_stages()
         self.scan_controls.set_scanning(False)
-        self.pipeline_viz.set_active_file("", complete=True)
+        self.pipeline_viz.set_active_file("", complete=True, skipped_stages=skipped)
         for s in ["input", "static", "dynamic", "scoring", "ai", "report"]:
-            self.header.pipeline_indicator.set_stage(s, "completed")
+            self.header.pipeline_indicator.set_stage(s, "skipped" if s in skipped else "completed")
 
     def _handle_file_result(self, result: dict):
         # --- BULLETPROOF FIX: Save the real dictionary to a hidden cache ---

@@ -49,8 +49,8 @@ class MalScopeSignals(QObject):
 
     # ─── GUI → Orchestrator ───────────────────────────────────────────────
 
-    # User requests to start scanning a folder: (folder_path)
-    request_scan = pyqtSignal(str)
+    # User requests to start scanning a folder: (folder_path, scan_mode)
+    request_scan = pyqtSignal(str, str)
 
     # User requests to stop the current scan
     request_stop = pyqtSignal()

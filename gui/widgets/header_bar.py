@@ -133,6 +133,20 @@ class PipelineStageIndicator(QWidget):
                 color: {COLORS['error']};
                 border: none; background: transparent;
             """)
+        elif state == "skipped":
+            frame.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {COLORS['bg_elevated']};
+                    border: 1px solid {COLORS['border_light']};
+                    border-radius: 4px;
+                    padding: 2px 6px;
+                }}
+            """)
+            label.setStyleSheet(f"""
+                font-size: 10px; font-weight: 700; text-decoration: line-through;
+                color: {COLORS['text_dim']};
+                border: none; background: transparent;
+            """)
         else:  # idle
             frame.setStyleSheet(f"""
                 QFrame {{
