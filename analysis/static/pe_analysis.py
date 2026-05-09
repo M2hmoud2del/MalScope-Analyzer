@@ -9,6 +9,7 @@ def analyze_pe(file_path):
     result = {
         "is_pe": False,
         "error": None,
+        "imphash": "",
         "machine_type": None,
         "compile_time": None,
         "sections": [],
@@ -31,6 +32,11 @@ def analyze_pe(file_path):
     try:
         pe = pefile.PE(file_path)
         result["is_pe"] = True
+        
+        try:
+            result["imphash"] = pe.get_imphash() or ""
+        except Exception:
+            result["imphash"] = ""
         
         # 1. Machine Type
         machine_hex = hex(pe.FILE_HEADER.Machine)

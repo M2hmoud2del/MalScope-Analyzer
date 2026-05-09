@@ -201,16 +201,25 @@ class ScanWorker(QObject):
                 except Exception as e:
                     self.signals.log_message.emit("ERROR", f"Dynamic module error: {str(e)}")
 
+            # Extract static score from VirusTotal malicious detections
+            vt_res = static_data.get("vt_result", {})
+            if isinstance(vt_res, dict):
+                static_score = vt_res.get("detections", {}).get("malicious", 0)
+            else:
+                static_score = 0
+                
+            # Ensure this score is passed correctly to the results dictionary that the UI table reads from
+            static_data["score"] = static_score
+
             # Scoring
             score = 0
             if dynamic_data:
                 dynamic_score = dynamic_data.get("score", 0.0)
                 score = int(dynamic_score * 10)  # Map 0-10 to 0-100
             else:
-                # Fallback to static scoring (VT detections or Entropy)
-                vt = static_data.get("vt_result", "")
-                if "malicious" in str(vt).lower():
-                    score = 90
+                # Fallback to static scoring
+                if static_score > 0:
+                    score = static_score
                 elif float(static_data.get("entropy", 0)) > 7.0:
                     score = 60
                 elif len(static_data.get("urls", [])) > 0:
@@ -227,7 +236,8 @@ class ScanWorker(QObject):
                 verdict = "clean"
                 
             # Get real SHA256
-            sha256 = static_data.get("hash", "Unknown")
+            hashes = static_data.get("hashes", {})
+            sha256 = hashes.get("sha256", "Unknown")
             
             # AI Analysis (Skipped in Static Only)
             ai_explanation = {}
