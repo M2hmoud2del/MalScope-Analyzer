@@ -90,34 +90,12 @@ class Orchestrator(QObject):
         try:
             report_gen = ReportGenerator()
             
-            # --- FIX: Handle if the UI only sends the filename (string) ---
-            if isinstance(files[0], str):
-                filename = files[0]
-                # Reconstruct the data dictionary for the PDF
-                target_data = {
-                    "file": filename,
-                    "verdict": "suspicious" if filename.endswith((".pdf", ".doc")) else "clean",
-                    "score": 55 if filename.endswith((".pdf", ".doc")) else 10,
-                    "static": {
-                        "entropy": 6.8, 
-                        "pe_sections": 5,
-                        "urls": ["http://malicious.com/payload.exe"]
-                    },
-                    "dynamic": {
-                        "processes": ["cmd.exe (PID: 4512)"],
-                        "network": ["Outbound to 192.168.1.100:443"]
-                    }
-                }
-                
-                # Fetch a fresh AI summary specifically for the PDF
-                from ai.llm_analyzer import LLMAnalyzer
-                ai_text = LLMAnalyzer().analyze(target_data)
-                
-            else:
-                # If the UI passes the full dictionary later, use it directly
-                target_data = files[0]
-                ai_data = target_data.get('ai_explanation', {})
-                ai_text = ai_data.get('explanation', str(ai_data)) if isinstance(ai_data, dict) else str(ai_data)
+            # Extract the real data dictionary passed from the UI
+            target_data = files[0]
+            
+            # Safely extract the AI explanation text
+            ai_data = target_data.get('ai_explanation', {})
+            ai_text = ai_data.get('explanation', str(ai_data)) if isinstance(ai_data, dict) else str(ai_data)
             
             # Generate the PDF
             pdf_path = report_gen.generate_pdf(target_data, ai_text)
@@ -193,40 +171,39 @@ class ScanWorker(QObject):
                 score = 55
                 
             # Combine results
+            # 1. RUN THE REAL ANALYSIS ENGINES
+            try:
+                from analysis.dynamic.dynamic_analyzer import run_dynamic_analysis
+                dynamic_data = run_dynamic_analysis(file_path) 
+            except Exception as e:
+                self.signals.log_message.emit("ERROR", f"Dynamic module error: {str(e)}")
+                dynamic_data = {}
+
+            try:
+                # Assuming your team named the static file 'static_analyzer.py'
+                from analysis.static.static_analyzer import run_static_analysis 
+                static_data = run_static_analysis(file_path)
+            except Exception as e:
+                self.signals.log_message.emit("ERROR", f"Static module error: {str(e)}")
+                static_data = {}
+
+            # 2. Combine results using the LIVE data
             result = {
                 "file": filename,
                 "sha256": "abcdef1234567890" + str(i),
                 "verdict": verdict,
                 "score": score,
-                "static": {
-                    "entropy": 6.8, 
-                    "pe_sections": 5,
-                    "urls": ["http://malicious.com/payload.exe", "http://c2-server.net"]
-                },
-                "dynamic": {
-                    "processes": [{"name": "cmd.exe", "pid": 4512, "action": "Spawned shell"}],
-                    "network": [{"ip": "192.168.1.100", "port": 443, "protocol": "TCP", "direction": "Outbound"}],
-                    "registry": ["HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Malware"],
-                    "filesystem": ["C:\\Windows\\Temp\\payload.dll"]
-                },
-               "ai_explanation": {
+                "static": static_data,
+                "dynamic": dynamic_data,
+                "ai_explanation": {
                     "classification": verdict.capitalize(),
                     "confidence": "AI Evaluated",
                     "explanation": LLMAnalyzer().analyze({
                         "file": filename,
                         "verdict": verdict,
                         "score": score,
-                        "static": {
-                            "entropy": 6.8, 
-                            "pe_sections": 5,
-                            "urls": ["http://malicious.com/payload.exe", "http://c2-server.net"]
-                        },
-                        "dynamic": {
-                            "processes": [{"name": "cmd.exe", "pid": 4512, "action": "Spawned shell"}],
-                            "network": [{"ip": "192.168.1.100", "port": 443, "protocol": "TCP", "direction": "Outbound"}],
-                            "registry": ["HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Malware"],
-                            "filesystem": ["C:\\Windows\\Temp\\payload.dll"]
-                        }
+                        "static": static_data,
+                        "dynamic": dynamic_data
                     }),
                     "recommendations": ["Please review the detailed AI Threat Summary above."]
                 }
