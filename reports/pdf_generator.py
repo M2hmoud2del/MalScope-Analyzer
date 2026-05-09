@@ -1,4 +1,7 @@
 import os
+import json
+import textwrap
+import copy
 from fpdf import FPDF
 from datetime import datetime
 
@@ -35,10 +38,13 @@ class ReportGenerator:
         # --- Section 1: Executive Summary ---
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(0, 0, 0)
+        pdf.set_x(10) # Reset cursor
         pdf.cell(0, 10, "1. Executive Summary", ln=True)
         
         pdf.set_font("helvetica", "", 10)
+        pdf.set_x(10)
         pdf.cell(0, 6, f"Target File: {filename}", ln=True)
+        pdf.set_x(10)
         pdf.cell(0, 6, f"Scan Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
         
         # Color-code the verdict based on severity
@@ -49,41 +55,95 @@ class ReportGenerator:
         else:
             pdf.set_text_color(40, 167, 69) # Green
             
+        pdf.set_x(10)
         pdf.cell(0, 6, f"Final Verdict: {verdict}", ln=True)
+        pdf.set_x(10)
         pdf.cell(0, 6, f"Risk Score: {score}/100", ln=True)
         pdf.set_text_color(0, 0, 0) # Reset to black for the rest of the document
         pdf.ln(5)
 
         # --- Section 2: AI Threat Intelligence ---
         pdf.set_font("helvetica", "B", 12)
+        pdf.set_x(10)
         pdf.cell(0, 10, "2. AI Threat Intelligence Summary", ln=True)
         pdf.set_font("helvetica", "", 10)
         
-        # Security measure: Strip unsupported unicode (like emojis) that would crash the PDF builder
+        # Strip unsupported unicode, then forcefully wrap the AI text paragraph by paragraph
         safe_ai_text = str(ai_explanation).encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 6, safe_ai_text)
+        for paragraph in safe_ai_text.split('\n'):
+            # Lowered to 90
+            wrapped_p = textwrap.fill(paragraph, width=90, break_long_words=True)
+            pdf.set_x(10) 
+            # Added align="L" to prevent stretching
+            pdf.multi_cell(0, 6, txt=wrapped_p, align="L")
         pdf.ln(5)
 
-        # --- Section 3: Technical Data (Static & Dynamic) ---
+       # --- Section 3: Technical Data (Static & Dynamic) ---
         pdf.set_font("helvetica", "B", 12)
+        pdf.set_x(10)
         pdf.cell(0, 10, "3. Technical Data", ln=True)
         
         pdf.set_font("helvetica", "I", 10)
+        pdf.set_x(10)
         pdf.cell(0, 8, "Static Analysis Findings:", ln=True)
         pdf.set_font("helvetica", "", 9)
+        
         for key, val in scan_data.get('static', {}).items():
-            pdf.cell(10) # Add an indent
-            pdf.cell(0, 6, f"- {key}: {val}", ln=True)
+            # THE PRO FIX: Truncate massive string arrays to save the reader's sanity!
+            if key == 'strings' and isinstance(val, dict):
+                clean_strings = copy.deepcopy(val)
+                if 'general_strings' in clean_strings:
+                    gen = clean_strings['general_strings']
+                    if 'ascii' in gen and isinstance(gen['ascii'], list) and len(gen['ascii']) > 20:
+                        gen['ascii'] = gen['ascii'][:20] + [f"... ({len(gen['ascii']) - 20} more omitted)"]
+                    if 'unicode' in gen and isinstance(gen['unicode'], list) and len(gen['unicode']) > 20:
+                        gen['unicode'] = gen['unicode'][:20] + [f"... ({len(gen['unicode']) - 20} more omitted)"]
+                formatted_val = str(clean_strings)
+                
+            # Keep the beautiful JSON formatting for hashes and API results
+            elif isinstance(val, (dict, list)):
+                formatted_val = json.dumps(val, indent=4)
+            else:
+                formatted_val = str(val)
+                
+            raw_text = f"    - {key}: {formatted_val}"
+            
+            for line in raw_text.split('\n'):
+                wrapped_text = textwrap.fill(line, width=90, break_long_words=True)
+                pdf.set_x(10) 
+                pdf.multi_cell(0, 6, txt=wrapped_text, align="L")
             
         pdf.ln(3)
         
         pdf.set_font("helvetica", "I", 10)
+        pdf.set_x(10)
         pdf.cell(0, 8, "Dynamic Analysis Findings:", ln=True)
         pdf.set_font("helvetica", "", 9)
+        
         for key, val in scan_data.get('dynamic', {}).items():
-            pdf.cell(10) # Add an indent
-            # Convert list outputs to strings so they fit cleanly
-            pdf.cell(0, 6, f"- {key}: {str(val)}", ln=True)
+            # THE PRO FIX: Truncate massive string arrays to save the reader's sanity!
+            if key == 'strings' and isinstance(val, dict):
+                clean_strings = copy.deepcopy(val)
+                if 'general_strings' in clean_strings:
+                    gen = clean_strings['general_strings']
+                    if 'ascii' in gen and isinstance(gen['ascii'], list) and len(gen['ascii']) > 20:
+                        gen['ascii'] = gen['ascii'][:20] + [f"... ({len(gen['ascii']) - 20} more omitted)"]
+                    if 'unicode' in gen and isinstance(gen['unicode'], list) and len(gen['unicode']) > 20:
+                        gen['unicode'] = gen['unicode'][:20] + [f"... ({len(gen['unicode']) - 20} more omitted)"]
+                formatted_val = str(clean_strings)
+                
+            # Keep the beautiful JSON formatting for hashes and API results
+            elif isinstance(val, (dict, list)):
+                formatted_val = json.dumps(val, indent=4)
+            else:
+                formatted_val = str(val)
+                
+            raw_text = f"    - {key}: {formatted_val}"
+            
+            for line in raw_text.split('\n'):
+                wrapped_text = textwrap.fill(line, width=90, break_long_words=True)
+                pdf.set_x(10) 
+                pdf.multi_cell(0, 6, txt=wrapped_text, align="L")
 
         # --- Save the Output ---
         safe_filename = filename.replace(" ", "_").replace(".", "_")
