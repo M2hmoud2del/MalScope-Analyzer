@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
         self.signals.scan_started.connect(self._handle_scan_started)
         self.signals.scan_progress.connect(self.stats_panel.update_progress)
         self.signals.file_scan_started.connect(self.pipeline_viz.set_active_file)
-        self.signals.pipeline_stage_changed.connect(self.pipeline_viz.update_stage)
+        self.signals.pipeline_stage_changed.connect(self._handle_pipeline_stage_changed)
         self.signals.file_result_ready.connect(self._handle_file_result)
         self.signals.scan_completed.connect(self._handle_scan_completed)
         self.signals.log_message.connect(self.log_console.append_log)
@@ -158,16 +158,21 @@ class MainWindow(QMainWindow):
         self.file_details.clear()
         self.pipeline_viz.reset()
         self.stats_panel.reset()
+        self.header.update_threat_counts(0, 0, 0)
+        self.header.pipeline_indicator.reset_all()
         self.signals.log_message.emit("INFO", "UI Cleared.")
 
     # --- State Handlers ---
 
     def _handle_scan_started(self):
         self.scan_controls.set_scanning(True)
+        self.header.pipeline_indicator.set_stage("input", "active")
 
     def _handle_scan_completed(self, summary: dict):
         self.scan_controls.set_scanning(False)
         self.pipeline_viz.set_active_file("", complete=True)
+        for s in ["input", "static", "dynamic", "scoring", "ai", "report"]:
+            self.header.pipeline_indicator.set_stage(s, "completed")
 
     def _handle_file_result(self, result: dict):
         # --- BULLETPROOF FIX: Save the real dictionary to a hidden cache ---
@@ -185,3 +190,20 @@ class MainWindow(QMainWindow):
             self.stats_panel.increment("suspicious")
         elif "clean" in verdict:
             self.stats_panel.increment("clean")
+            
+        counts = self.stats_panel._counts
+        self.header.update_threat_counts(counts["malicious"], counts["suspicious"], counts["clean"])
+
+    def _handle_pipeline_stage_changed(self, filename: str, stage: str):
+        self.pipeline_viz.update_stage(filename, stage)
+        stages_order = ["input", "static", "dynamic", "scoring", "ai", "report"]
+        stage_lower = stage.lower()
+        if stage_lower in stages_order:
+            idx = stages_order.index(stage_lower)
+            for i, s in enumerate(stages_order):
+                if i < idx:
+                    self.header.pipeline_indicator.set_stage(s, "completed")
+                elif i == idx:
+                    self.header.pipeline_indicator.set_stage(s, "active")
+                else:
+                    self.header.pipeline_indicator.set_stage(s, "idle")
