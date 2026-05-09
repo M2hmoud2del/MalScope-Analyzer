@@ -1,4 +1,4 @@
-# 🛡️ Static Malware Analysis Engine
+# 🛡️ Advanced Static Malware Analysis Engine
 
 ## 📖 Comprehensive Overview
 
@@ -10,44 +10,40 @@ By utilizing this engine, we can quickly generate Indicators of Compromise (IoCs
 
 ## 🧩 Key Architecture & Components
 
-Our static analysis pipeline is modular, designed for extensibility and robustness.
+Our static analysis pipeline is highly modular, designed for extensibility and deep inspection.
 
-### 1. `static_analyzer.py` (The Core Engine)
-This script acts as the orchestrator for the static phase. Its primary responsibilities include:
-- **Cryptographic Hashing**: Calculates robust file hashes (`MD5`, `SHA-1`, `SHA-256`) using Python's native `hashlib`. These hashes act as unique fingerprints for the file.
-- **PE (Portable Executable) Deep Parsing**: Utilizes the `pefile` library to dissect Windows executables. It validates the DOS MZ header, parses the NT headers, and maps out the section table.
-- **Anomaly Detection Heuristics**: Programmatically checks for signs of malicious intent, such as identifying sections that are both `Writable` and `Executable` (a common indicator of shellcode injection or packing).
+### 1. `static_analyzer.py` (The Core Orchestrator)
+This script aggregates data from all submodules to form a comprehensive JSON report.
+- **Cryptographic Hashing**: Calculates robust file hashes (`MD5`, `SHA-1`, `SHA-256`).
 
-### 2. `vt_client.py` (Threat Intelligence Integration)
-A specialized HTTP client built to interface securely with the **VirusTotal API v3**.
-- **Automated Lookups**: Submits the generated SHA-256 hash to VirusTotal to retrieve historical analysis data.
-- **Resilient Communication**: Built with `requests`, it handles API rate limiting, error codes (e.g., `404 Not Found` for zero-days, `403 Forbidden`), and parses the complex, nested JSON responses returned by VT v3.
-- **Data Aggregation**: Extracts specifically the aggregate detection ratios (malicious, suspicious, undetected) and the permalink for the full web report.
+### 2. `pe_analysis.py` (Deep PE Header Analysis)
+Utilizes the `pefile` library to dissect Windows executables, extracting:
+- **Imports (IAT) & Exports (EAT)**: Identifies imported DLLs and functions, crucial for understanding binary capabilities.
+- **Digital Signatures**: Verifies the presence of Authenticode signatures within the `IMAGE_DIRECTORY_ENTRY_SECURITY` directory.
+- **Advanced Packer Detection**: Uses signature-based heuristics (matching section names against known packers like UPX, Enigma, Themida, ASPack, MPRESS) alongside entropy analysis.
+- **Resource Analysis**: Parses the `.rsrc` section to identify and count embedded resources (e.g., Icons, Manifests, Version Info).
+- **Compile Time**: Extracts the `TimeDateStamp` to estimate when the malware was authored.
 
-### 3. `.env` Usage (Secrets Management)
-Security is paramount. We strictly adhere to best practices by preventing hardcoded credentials.
-- **Environment Variables**: The `VT_API_KEY` is loaded dynamically at runtime using the `python-dotenv` library.
-- **Repository Security**: The `.env` file is explicitly excluded via `.gitignore` to prevent accidental credential leakage to version control.
+### 3. `strings_analyzer.py` (Data Extraction & Geolocation)
+- **Strings Extraction**: Extracts both **ASCII** and **Unicode** strings (minimum 4 characters) to find hidden commands or pathways.
+- **Network IoCs**: Uses regex to identify URLs and IPv4 addresses embedded in the binary.
+- **Advanced Noise Reduction**: Implements strict length thresholds (>8 chars), alphanumeric ratio complexity filters, and dynamic blacklists to discard irrelevant library noise (e.g., PyInstaller remnants).
+- **Heuristic String Grouping**: Uses regex to intelligently categorize high-value indicators into a dedicated `priority_strings` bucket containing `urls`, `ips`, `file_paths`, and `registry_keys`. General strings are deduplicated and safely stored.
+- **IP Geolocation**: Automatically integrates with `ip-api.com` to resolve extracted IP addresses to their physical Country and ISP, instantly highlighting suspicious offshore servers.
+
+### 4. `vt_client.py` (Threat Intelligence Integration)
+- **Automated Lookups**: Submits the generated SHA-256 hash to the **VirusTotal API v3** to retrieve historical analysis data and aggregate detection ratios.
+
+### 5. `.env` Usage (Secrets Management)
+- The `VT_API_KEY` is loaded dynamically at runtime using `python-dotenv`, ensuring credentials are never hardcoded or exposed in version control.
 
 ---
 
 ## ✨ Advanced Features & Capabilities
 
-### 🔍 Deep PE Header Analysis
-We extract critical metadata that often reveals the true nature of a binary:
-- **Section Entropy Analysis**: Calculates the Shannon entropy of individual PE sections. High entropy (approaching 8.0) strongly indicates that the section is packed, compressed, or encrypted—a common malware evasion technique.
-- **Section Characteristics**: Extracts and reviews section names (e.g., looking for anomalies like `.upx` or random alphanumeric strings) and their memory permissions.
-- **Machine Architecture**: Identifies the target execution environment (e.g., `x86`, `x64`).
+- **Heuristic Anomaly Detection**: Actively flags suspicious indicators such as writable/executable sections, unusually high entropy (>7.0), abnormal section names, or unusually low import counts (indicative of a dropper or packer).
+- **Graceful Degradation**: Built to handle non-PE files safely without crashing, while still executing String Extraction, Geolocation, and Threat Intel lookups.
 
-### 🌐 Automated Threat Intelligence (OSINT)
-- **Rapid Triage**: Before performing local deep analysis, the engine leverages the collective intelligence of dozens of antivirus vendors via VirusTotal.
-- **Zero-Day Identification**: If VirusTotal returns a `404`, the engine intelligently flags the file as a potential **Zero-Day** or highly targeted malware, escalating its priority for dynamic analysis.
-
-### 🚩 Suspicious Indicator Flagging
-The engine doesn't just parse data; it interprets it. It actively flags:
-- Missing essential PE headers.
-- Invalid checksums or out-of-bounds memory pointers.
-- Unusually small or large sections.
 
 ---
 
@@ -55,43 +51,122 @@ The engine doesn't just parse data; it interprets it. It actively flags:
 
 The module relies on a hardened stack of Python libraries:
 - **`pefile`**: The industry standard for Portable Executable parsing.
-- **`requests`**: For robust, thread-safe HTTP communications.
+- **`requests`**: For robust, thread-safe HTTP communications (used for VirusTotal and IP-API).
 - **`python-dotenv`**: For secure, 12-factor app compliant configuration management.
-- **`hashlib` & `math`**: Standard library modules for cryptography and entropy calculations.
+- **`hashlib`, `math`, `re`**: Standard library modules for cryptography, entropy calculations, and regex parsing.
 
 ---
 
-## 📊 Output Example: EICAR Test File
+## 📊 Output Example
 
-Below is an extensive JSON output generated by our static analyzer when processing the standard EICAR test file. 
-
-*Note: The engine correctly identifies that EICAR is a simple text file, not a valid Windows executable, gracefully handling the `pefile` exception while still successfully retrieving the high detection ratio from VirusTotal.*
+Below is a comprehensive JSON output generated by the upgraded static analyzer, showcasing the deep nesting and newly integrated data points:
 
 ```json
 {
-  "file_hash": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
-  "pe_analysis": {
-    "is_pe": false,
-    "error": "Not a valid PE file",
-    "details": "DOS Header magic not found."
+  "hash": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+  "strings": {
+    "priority_strings": {
+      "urls": [
+        "http://malicious-domain.com/payload.exe"
+      ],
+      "ips": [
+        "185.15.20.10"
+      ],
+      "file_paths": [
+        "C:\\Windows\\System32\\cmd.exe"
+      ],
+      "registry_keys": [
+        "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+      ]
+    },
+    "general_strings": {
+      "ascii": [
+        "kernel32.dll",
+        "LoadLibraryA"
+      ],
+      "unicode": []
+    }
   },
-  "virustotal": {
+  "imports_exports": {
+    "imports": {
+      "KERNEL32.dll": [
+        "GetProcAddress",
+        "VirtualAlloc"
+      ]
+    },
+    "exports": []
+  },
+  "signature": {
+    "signed": false,
+    "details": null
+  },
+  "packer_info": {
+    "detected": true,
+    "packers": [
+      "UPX"
+    ]
+  },
+  "resources": [
+    {
+      "type": "RT_ICON",
+      "count": 3
+    },
+    {
+      "type": "RT_MANIFEST",
+      "count": 1
+    }
+  ],
+  "compile_time": "2023-10-27 14:32:01 UTC",
+  "network_geolocation": {
+    "urls": [
+      "http://malicious-domain.com/payload.exe"
+    ],
+    "ips": [
+      {
+        "ip": "185.15.20.10",
+        "country": "Russia",
+        "isp": "Some ISP LLC"
+      },
+      {
+        "ip": "192.168.1.100",
+        "country": "Unknown/Local",
+        "isp": "Unknown"
+      }
+    ]
+  },
+  "pe_info": {
+    "is_pe": true,
+    "error": null,
+    "machine_type": "IMAGE_FILE_MACHINE_I386",
+    "sections": [
+      {
+        "name": ".UPX0",
+        "entropy": 0.0,
+        "virtual_size": 4096,
+        "raw_size": 0
+      },
+      {
+        "name": ".UPX1",
+        "entropy": 7.89,
+        "virtual_size": 8192,
+        "raw_size": 8192
+      }
+    ],
+    "suspicious_indicators": [
+      "High entropy (7.89) in section '.UPX1' (Possible packing/encryption)",
+      "Unusual section name: '.UPX0'",
+      "Unusual section name: '.UPX1'"
+    ]
+  },
+  "vt_result": {
     "status": "success",
     "detections": {
       "malicious": 63,
       "suspicious": 0,
       "undetected": 12,
-      "harmless": 0,
-      "timeout": 0,
       "total": 75
     },
-    "threat_labels": [
-      "eicar",
-      "test",
-      "virus"
-    ],
-    "permalink": "https://www.virustotal.com/gui/file/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f/detection"
-  },
-  "analysis_timestamp": "2023-10-27T14:32:01Z"
+    "permalink": "https://www.virustotal.com/gui/file/..."
+  }
 }
 ```
