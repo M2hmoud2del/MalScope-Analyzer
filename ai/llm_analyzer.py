@@ -35,7 +35,14 @@ class LLMAnalyzer:
 
         Target File: {scan_data.get('file', 'Unknown')}
         Engine Verdict: {scan_data.get('verdict', 'Unknown')}
-        Risk Score: {scan_data.get('score', 'Unknown')}/100
+        Risk Score: {scan_data.get('score', 'Unknown')}/10
+
+        THRESHOLD RULES (CRITICAL):
+        When determining the severity of the threat in your summary, strictly follow these thresholds based on the Risk Score (out of 10):
+        * Score 0.0 to 3.9 = CLEAN
+        * Score 4.0 to 6.9 = SUSPICIOUS
+        * Score 7.0 to 10.0 = MALICIOUS
+        Do not classify a file as malicious if the score is below 7.0 unless there is definitive proof of severe exploit execution. Do not overreact to minor benign sandbox noise.
 
         --- STATIC ANALYSIS DATA (JSON) ---
         {static_json}
@@ -44,7 +51,7 @@ class LLMAnalyzer:
         {dynamic_json}
 
         Based on the data above, provide a report strictly in this format:
-        1. Threat Summary: (2-3 sentences explaining the primary risk)
+        1. Threat Summary: (2-3 sentences explaining the primary risk based on the thresholds above)
         2. Suspicious Indicators: (Bullet points referencing specific JSON findings)
         3. Recommended Response: (Steps for a security analyst to take)
         
