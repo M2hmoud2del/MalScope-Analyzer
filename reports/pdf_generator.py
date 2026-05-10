@@ -58,7 +58,7 @@ class ReportGenerator:
         pdf.set_x(10)
         pdf.cell(0, 6, f"Final Verdict: {verdict}", ln=True)
         pdf.set_x(10)
-        pdf.cell(0, 6, f"Risk Score: {score}/100", ln=True)
+        pdf.cell(0, 6, f"Risk Score: {score}/10", ln=True)
         pdf.set_text_color(0, 0, 0) # Reset to black for the rest of the document
         pdf.ln(5)
 
