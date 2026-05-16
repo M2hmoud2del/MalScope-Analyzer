@@ -1,8 +1,6 @@
-# 🛡️ MalScope – Automated Malware Analysis & Reporting Tool
+# 🛡️ MalScope is a modular and scalable malware analysis platform designed to automate the inspection of suspicious files through multiple security analysis techniques. The system combines static analysis, dynamic behavioral analysis, risk scoring, and optional AI-powered explanations to help security researchers and analysts quickly identify potentially malicious activity and generate professional investigation reports.
 
-MalScope is a modular malware analysis system that combines **static analysis**, **dynamic analysis**, and optional **AI-powered insights** to scan suspicious files and generate detailed security reports.
-
----
+The platform is built with a modular architecture where each component operates independently and communicates through a centralized orchestration layer, making the system flexible, maintainable, and easy to extend with future analysis engines.
 
 # 🧠 Project Idea
 
