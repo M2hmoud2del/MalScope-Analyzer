@@ -1,6 +1,6 @@
 PyQt5
-pefile
 requests
 python-dotenv
-google-generativeai
 fpdf2
+pefile
+python-dotenv
