@@ -5,6 +5,19 @@
 This directory (`analysis/static/`) houses the core logic for the **Static Malware Analysis** phase of the **MalScope-Analyzer** platform. Static analysis is a foundational step in malware triage, designed to safely examine the structural properties, cryptographic signatures, and embedded metadata of suspicious files without ever executing them.
 
 By utilizing this engine, we can quickly generate Indicators of Compromise (IoCs), identify obfuscation techniques, and query global threat intelligence feeds. This phase acts as the first line of defense, providing rapid insights before passing the sample to more resource-intensive dynamic analysis environments.
+The architecture was intentionally designed to support extensibility, automation, and forensic-grade inspection workflows. Every analysis component operates independently while contributing to a centralized reporting pipeline, allowing analysts to integrate additional modules, custom detection rules, and advanced heuristics with minimal modification to the core framework.
+
+This engine is especially useful for:
+
+Malware triage automation
+Incident response investigations
+SOC analyst workflows
+Threat hunting operations
+Reverse engineering preparation
+Security research environments
+Educational malware analysis labs
+
+The system emphasizes safe inspection techniques by avoiding execution during this phase, significantly reducing the risk associated with handling untrusted binaries.
 
 ---
 
@@ -15,6 +28,10 @@ Our static analysis pipeline is highly modular, designed for extensibility and d
 ### 1. `static_analyzer.py` (The Core Orchestrator)
 This script aggregates data from all submodules to form a comprehensive JSON report.
 - **Cryptographic Hashing & Imphash**: Calculates robust file hashes (`MD5`, `SHA-1`, `SHA-256`, `SHA-512`) and extracts the Import Hash (`IMPHASH`).
+- File Metadata Extraction: Collects file size, MIME type, entropy levels, timestamps, and structural characteristics.
+Threat Intelligence Integration: Supports optional API integration with external intelligence providers such as VirusTotal and AbuseIPDB.
+Centralized Reporting Engine: Combines outputs from every analyzer into a normalized machine-readable report format.
+Modular Plugin Loader: Enables future static modules to be integrated dynamically without affecting the existing architecture.
 
 ### 2. `pe_analysis.py` (Deep PE Header Analysis)
 Utilizes the `pefile` library to dissect Windows executables, extracting:
@@ -33,6 +50,13 @@ Utilizes the `pefile` library to dissect Windows executables, extracting:
 
 ### 4. `vt_client.py` (Threat Intelligence Integration)
 - **Automated Lookups**: Submits the generated SHA-256 hash to the **VirusTotal API v3** to retrieve historical analysis data and aggregate detection ratios.
+- Implements YARA-based scanning capabilities to:
+Detect known malware families
+Match custom threat signatures
+Identify packed binaries
+Flag suspicious behaviors and embedded payloads
+
+The system supports both public and custom enterprise-grade YARA rule sets.
 
 ### 5. `.env` Usage (Secrets Management)
 - The `VT_API_KEY` is loaded dynamically at runtime using `python-dotenv`, ensuring credentials are never hardcoded or exposed in version control.
