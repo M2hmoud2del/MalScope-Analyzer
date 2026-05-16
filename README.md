@@ -176,11 +176,11 @@ MalScope/
 * Provide security recommendations
 
 ### Output:
-
+---
 ```
 "This file shows ransomware-like behavior due to encryption patterns and suspicious API calls..."
 ```
-
+----
 ---
 
 ## 📄 Reports Module
@@ -197,7 +197,8 @@ MalScope/
 
 ### Output:
 
-* `report.pdf`
+
+*  output`report.pdf`
 
 ---
 
